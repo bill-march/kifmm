@@ -1,0 +1,2 @@
+function [Tree] = BuildTree(points)
+
