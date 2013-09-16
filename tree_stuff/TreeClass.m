@@ -1,8 +1,8 @@
-classdef Tree
+classdef TreeClass
 
     properties
         NumLevels % number of levels in the tree
-        Nodes % master list of nodes, 0 is the root
+        Nodes % master list of nodes, first entry is the root
         NodesPerLevel % the list of nodes in each level, these need to be references
         
     end
@@ -12,8 +12,8 @@ classdef Tree
         function obj=Tree(Data, MinBoxSize, NumLevels)
             RootBox = ComputeBounds(Data);
             root = TreeNode(bounds, 1, Data.ncols(), NULL);
-            nodes.push_back(root);
-            nodes_per_level[1].push_back(root);
+            obj.Nodes[end+1] = root;
+            obj.NodesPerLevel[1][end+1] = root;
             
         end
         
