@@ -40,17 +40,18 @@ classdef Octree1DClass < handle
             % Preallocate the list of nodes 
             %obj.NodeList(2^MaxDepth) = OctreeNode;
             obj.NodeList = OctreeNode.empty(2^MaxDepth,0);
-            obj.LeafNodeList = OctreeNode.empty(ceil(num_points / MaxLeafSize), 0);
+            obj.LeafNodeList = int32.empty(ceil(num_points / MaxLeafSize), 0);
+            obj.NodesPerLevelList = cell([1, MaxDepth]);
             
             obj.Data = sort(Data);
             
-            root_node = OctreeNode(1, num_points, 1, 1, obj.Data(1), obj.Data(end));
+            root_node = OctreeNode(1, num_points, 1, obj.Data(1), obj.Data(end), 1);
             
             obj.NodeSize = obj.Data(end) - obj.Data(1);
             
             SplitNode(obj, root_node);
             
-            FillInLists(obj);
+            FillInLists(obj, root_node, root_node);
             
             
         end
@@ -59,7 +60,7 @@ classdef Octree1DClass < handle
         function SplitNode(this, node)
             
             this.NodeList(node.Index) = node;
-            this.NodesPerLevelList{node.Depth}(end+1) = node;
+            this.NodesPerLevelList{node.Depth}(end+1) = node.Index;
             
             % fill me in
             node_width = node.MaxVal - node.MinVal;
@@ -80,18 +81,17 @@ classdef Octree1DClass < handle
                     split_index = 0;
                 end
                 
-                left_index = 2 * node.Index;
-                right_index = 2 * node.Index + 1;
-                
                 left_endpoint = node.MinVal + 2^(-node.Depth) * this.NodeSize;
                 
                 left_count = split_index;
                 right_begin = node.Begin + left_count;
                 right_count = node.Count - split_index;
                 
+                left_index = 2 * node.Index;
+                right_index = left_index + 1;
                 
-                left_child = OctreeNode(node.Begin, left_count, node.Depth+1, left_index, node.MinVal, left_endpoint);
-                right_child = OctreeNode(right_begin, right_count, node.Depth+1, right_index, left_endpoint, node.MaxVal);
+                left_child = OctreeNode(node.Begin, left_count, node.Depth+1, node.MinVal, left_endpoint, left_index);
+                right_child = OctreeNode(right_begin, right_count, node.Depth+1, left_endpoint, node.MaxVal, right_index);
                 
                 this.NodeList(left_index) = left_child;
                 this.NodeList(right_index) = right_child;
@@ -109,49 +109,97 @@ classdef Octree1DClass < handle
                 
             else 
                 % this node is a leaf
-                this.LeafNodeList(end+1) = node;
+                this.LeafNodeList(end+1) = node.Index;
                 this.Depth = max([this.Depth node.Depth]);
                 
             end
             
         end
         
-        
-        function FillInLists(this, node)
-        
-            if (node.IsLeaf())
-               
+        function FillInLists(this, node1, node2)
+           
+            if ((node1.Depth == node2.Depth) && node1.WellSeparated(node2))
                 
+                node1.InteractionList(end+1) = node2.Index;
+            
+                % don't add a self interaction here
+            elseif (node1.IsLeaf() && node2.IsLeaf() && node1.Index ~= node2.Index) 
+            
+                node1.NearFieldList(end+1) = node2.Index;
+                
+            elseif(node1.IsLeaf()) 
+                
+                if (node2.HasLeft) 
+                    left_child2 = node2.Index * 2;
+                    this.FillInLists(node1, this.NodeList(left_child2));
+                end
+
+                if (node2.HasRight)
+                    right_child2 = node2.Index * 2 + 1;
+                    this.FillInLists(node1, this.NodeList(right_child2));
+                end
+
+            elseif(node2.IsLeaf())
+                
+                if (node1.HasLeft) 
+                    left_child1 = node1.Index * 2;
+                    this.FillInLists(this.NodeList(left_child1), node2);
+                end
+
+                if (node1.HasRight)
+                    right_child1 = node1.Index * 2 + 1;
+                    this.FillInLists(this.NodeList(right_child1), node2);
+                end
+                
+            else % both are internal nodes
+                
+                if (node1.HasLeft) 
+                    left_child1 = node1.Index * 2;
+                    if (node2.HasLeft) 
+                        left_child2 = node2.Index * 2;
+                        this.FillInLists(this.NodeList(left_child1), this.NodeList(left_child2));
+                    end
+
+                    if (node2.HasRight)
+                        right_child2 = node2.Index * 2 + 1;
+                        this.FillInLists(this.NodeList(left_child1), this.NodeList(right_child2));
+                    end
+                end
+
+                if (node1.HasRight) 
+                    right_child1 = node1.Index * 2 + 1;
+                    if (node2.HasLeft) 
+                        left_child2 = node2.Index * 2;
+                        this.FillInLists(this.NodeList(right_child1), this.NodeList(left_child2));
+                    end
+
+                    if (node2.HasRight)
+                        right_child2 = node2.Index * 2 + 1;
+                        this.FillInLists(this.NodeList(right_child1), this.NodeList(right_child2));
+                    end
+                end
                 
             end
-            
-            if (node.HasLeft) 
-                left_child = this.NodeList(2 * node.Index);
-                this.FillInLists(left_child);
-            end
-            
-            if (node.HasRight)
-                right_child = this.NodeList(2 * node.Index + 1);
-                this.FillInLists(right_child);
-            end  
             
         end
+                
+
         
-        
-        function Print(this, node)
+        function Print(this)
            
-            node.Print();
-            
-            if (node.HasLeft) 
-                left_child = this.NodeList(2 * node.Index);
-                this.Print(left_child);
+            for depth = 1:this.MaxDepth
+               
+                num_nodes = size(this.NodesPerLevelList{depth}, 2);
+                
+                for node_ind = 1: num_nodes
+                   
+                    cur_node_ind = this.NodesPerLevelList{depth}(node_ind);
+                    cur_node = this.NodeList(cur_node_ind)
+                    
+                end
+                
             end
-            
-            if (node.HasRight)
-                right_child = this.NodeList(2 * node.Index + 1);
-                this.Print(right_child);
-            end
-            
+
         end
         
     end

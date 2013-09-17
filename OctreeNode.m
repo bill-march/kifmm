@@ -23,32 +23,71 @@ classdef OctreeNode < handle
         
         Depth
         
-        % this node's index in the global list of nodes
+        % this node index
         Index
         
-        % this nodes lists 
+        % this node's lists 
         InteractionList
         NearFieldList
+        
+        % the outgoing representation
+        PsiVector
+        
+        % the incoming representation
+        PhiVector
+        
+        ProjMatrix
+        
+        Brow
+        
+        FarFieldInterpolationPoints
+        NumInterpolationPoints
+        
+        OutgoingSkeletonSize
+        
+        % for now, assuming that in a leaf the outgoing and incoming
+        % skeletons are just all of the points in the leaf
     
     end
     
     methods
         
-        function obj = OctreeNode(begin, count, depth, index, min_val, max_val)
+        function obj = OctreeNode(begin, count, depth, min_val, max_val, index)
             
             if (nargin > 0)
                 if (count > 0) 
                     obj.Begin = begin;
                     obj.Count = count;
                     obj.Depth = depth;
-                    obj.Index = index;
                     obj.MinVal = min_val;
                     obj.MaxVal = max_val;
                     obj.End = begin + count - 1;
                     obj.HasLeft = false;
                     obj.HasRight = false;
+                    obj.Index = index;
+                    
+                    %obj.InteractionList = OctreeNode.empty(2, 0);
+                    obj.InteractionList = int32.empty(2,0);
+                    
+                    %obj.NearFieldList = OctreeNode.empty(2, 0);
+                    obj.NearFieldList = int32.empty(2,0);
+                    
+                else
+                    obj.Index = -1;
                 end
-            end            
+            else
+                obj.Index = -1;
+            end
+        end
+        
+        function res = is_empty(this)
+           
+            if (this.Index > 0)
+                res = false;
+            else
+                res = true;
+            end
+            
         end
         
         function Print(this)
@@ -58,6 +97,71 @@ classdef OctreeNode < handle
             count = this.Count
             
         end
+        
+        function res = IsLeaf(this)
+           
+            if (this.is_empty())
+                res = false;
+            else 
+                res = ~(this.HasLeft || this.HasRight);
+            end
+            
+        end
+        
+        function res = WellSeparated(this, other)
+           
+            % I'm assuming that if they don't touch, then they're
+            % well-separated
+            % I think this assumes that they're on the same level of the
+            % tree
+            
+            res = false;
+            eps = 1e-16;
+            
+            % make sure they're not the same node and that they are on the
+            % same level of the tree
+            if (this.Index ~= other.Index && this.Depth == other.Depth)
+                
+                if (abs(this.MaxVal - other.MinVal) > eps && abs(other.MaxVal - this.MinVal) > eps) 
+                    res = true;
+                end
+                
+            end
+            
+        end
+        
+        function OutgoingToOutgoing(this, child1, child2)
+           
+            % we're getting the outgoing representation from our child 
+            % node
+            
+            psi_hat = [child1.PsiVector child2.PsiVector];
+            num_skel_points = child1.OutgoingSkeletonSize + child2.OutgoingSkeletonSize;
+            
+            A = zeros(this.NumInterpolationPoints, num_skel_points);
+            
+            for i = 1:this.NumInterpolationPoints
+               
+                for j = 1:child1.OutgoingSkeletonSize
+                
+                    A(i,j) = kernel.eval(Data(InterpolationPoints(i)), Data(child1.OutgoingSkeleton(j)));
+                    
+                end
+                
+                for j = 1:child2.OutgoingSkeletonSize
+
+                    A(i,j) = kernel.eval(Data(InterpolationPoints(i)), Data(child2.OutgoingSkeleton(j)));
+
+                end
+                            
+            end
+            
+            [Acol Z] = InterpolativeDecomposition(A);
+            
+            this.PsiVector = Z * psi_hat;
+            
+        end
+
                 
     end
     
