@@ -1,8 +1,6 @@
 classdef OctreeNode < handle
     
     properties
-        IncomingRepresentation
-        OutgoingRepresentation
     
         % the index in the global array of the first point owned by the
         % node
@@ -30,20 +28,29 @@ classdef OctreeNode < handle
         InteractionList
         NearFieldList
         
+        
+        %%%%%%%%%%%% STATS %%%%%%%%%%%%%%%%%%%%%%
+        
         % the outgoing representation
         PsiVector
         
         % the incoming representation
         PhiVector
         
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%
+        
+        InterpolationPoints
+        
         ProjMatrix
-        
-        Brow
-        
-        FarFieldInterpolationPoints
-        NumInterpolationPoints
-        
+        EvalMatrix
+
+        OutgoingSkeleton
         OutgoingSkeletonSize
+        
+        IncomingSkeleton
+        IncomingSkeletonSize
+        
+        OIMatrices
         
         % for now, assuming that in a leaf the outgoing and incoming
         % skeletons are just all of the points in the leaf
@@ -78,6 +85,18 @@ classdef OctreeNode < handle
             else
                 obj.Index = -1;
             end
+        end
+                
+        function CopySkeletons(this, child)
+           
+            this.ProjMatrix = child.ProjMatrix;
+            this.OutgoingSkeleton = child.OutgoingSkeleton;
+            this.OutgoingSkeletonSize = child.OutoingSkeletonSize;
+            this.IncomingSkeleton = child.IncomingSkeleton;
+            this.IncomingSkeletonSize = child.IncomingSkeletonSize;
+           
+            this.InterpolationPoints = child.InterpolationPoints;
+            
         end
         
         function res = is_empty(this)
@@ -130,38 +149,6 @@ classdef OctreeNode < handle
             
         end
         
-        function OutgoingToOutgoing(this, child1, child2)
-           
-            % we're getting the outgoing representation from our child 
-            % node
-            
-            psi_hat = [child1.PsiVector child2.PsiVector];
-            num_skel_points = child1.OutgoingSkeletonSize + child2.OutgoingSkeletonSize;
-            
-            A = zeros(this.NumInterpolationPoints, num_skel_points);
-            
-            for i = 1:this.NumInterpolationPoints
-               
-                for j = 1:child1.OutgoingSkeletonSize
-                
-                    A(i,j) = kernel.eval(Data(InterpolationPoints(i)), Data(child1.OutgoingSkeleton(j)));
-                    
-                end
-                
-                for j = 1:child2.OutgoingSkeletonSize
-
-                    A(i,j) = kernel.eval(Data(InterpolationPoints(i)), Data(child2.OutgoingSkeleton(j)));
-
-                end
-                            
-            end
-            
-            [Acol Z] = InterpolativeDecomposition(A);
-            
-            this.PsiVector = Z * psi_hat;
-            
-        end
-
                 
     end
     
