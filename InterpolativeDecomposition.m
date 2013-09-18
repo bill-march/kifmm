@@ -9,9 +9,11 @@ function [Acol, proj, skeleton] = InterpolativeDecomposition(A)
 
     k = rank(A, 1e-15);
     
-    % now, we need l Gaussian iid columns, but how to choose l?
+    % now, we need ell Gaussian iid columns, but how to choose ell?
 
-
+    
+    
+    
 
 end
 

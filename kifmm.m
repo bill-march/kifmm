@@ -54,7 +54,7 @@ classdef KIFMM
                 leaf_ind = this.Tree.LeafNodeList(i);
                 leaf_node = this.Tree.NodeList(leaf_ind);
                 
-                interpolation_points = SampleFarField(this.Tree, leaf_node, this.NumInterpolationPoints);
+                interpolation_points = this.Tree.SampleFarField(leaf_node, this.NumInterpolationPoints);
                 num_interpolation_points = size(interpolation_points, 2);
 
                 leaf_node.InterpolationPoints = interpolation_points;
@@ -138,7 +138,7 @@ classdef KIFMM
                             
                             % need to merge them
                             
-                            node.InterpolationPoints = SampleFarField();
+                            node.InterpolationPoints = this.Tree.SampleFarField(node, this.NumInterpolationPoints);
                             num_interpolation_points = size(node.InterpolationPoints, 2);
                             num_child_skeletons = left_node.OutgoingSkeletonSize + right_node.OutgoingSkeletonSize;
 

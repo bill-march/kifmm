@@ -202,6 +202,39 @@ classdef Octree1DClass < handle
 
         end
         
+        % this should mostly work
+        function [InterpolationInds] = SampleFarField(this, node, num_points)
+            
+            num_sampled = 0;
+            
+            width = node.MaxVal - node.MinVal;
+            
+            total_points = size(this.Data, 2);
+            InterpolationInds = zeros(1,num_points);
+            possible_inds = 1:total_points;
+            num_possible_points = total_points;
+            
+            while (num_sampled < num_points)
+            
+                sample_ind = random(1, num_possible_points);
+                sample_point = this.Data(possible_inds(sample_ind));
+                dist = node.MinDistance(sample_point);
+                
+                if (dist >= width) 
+                    InterpolationInds(num_sampled+1) = possible_inds(sample_ind);
+                end
+                
+                temp = possible_inds(total_points - num_sampled);
+                possible_inds(total_points - num_sampled) = possible_inds(sample_ind);
+                possible_inds(sample_ind) = temp;
+                
+                num_sampled = num_sampled + 1;
+                num_possible_points = num_possible_points - 1;
+                
+            end
+            
+        end
+        
     end
     
 end

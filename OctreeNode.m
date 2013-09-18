@@ -149,6 +149,15 @@ classdef OctreeNode < handle
             
         end
         
+        function dist = MinDistance(this, point)
+            
+            lower = this.MinVal - point;
+            upper = point - this.MaxVal;
+            
+            dist = 0.5 * (lower + abs(lower) + upper + abs(upper));
+            
+        end
+        
                 
     end
     
