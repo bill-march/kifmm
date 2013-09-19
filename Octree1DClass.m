@@ -23,36 +23,42 @@ classdef Octree1DClass < handle
         MinLeafWidth
         MaxDepth
         
+        % the permutation used in sorting
+        NewFromOld
+        
     end
     
     methods
         
         function obj = Octree1DClass(Data, MaxLeafSize, MinLeafWidth, MaxDepth)
             
-            obj.Depth = 1;
+            if (nargin > 0)
             
-            num_points = size(Data, 2);
-            
-            obj.MaxLeafSize = MaxLeafSize;
-            obj.MinLeafWidth = MinLeafWidth;
-            obj.MaxDepth = MaxDepth;
-            
-            % Preallocate the list of nodes 
-            %obj.NodeList(2^MaxDepth) = OctreeNode;
-            obj.NodeList = OctreeNode.empty(2^MaxDepth,0);
-            obj.LeafNodeList = int32.empty(ceil(num_points / MaxLeafSize), 0);
-            obj.NodesPerLevelList = cell([1, MaxDepth]);
-            
-            obj.Data = sort(Data);
-            
-            root_node = OctreeNode(1, num_points, 1, obj.Data(1), obj.Data(end), 1);
-            
-            obj.NodeSize = obj.Data(end) - obj.Data(1);
-            
-            SplitNode(obj, root_node);
-            
-            FillInLists(obj, root_node, root_node);
-            
+                obj.Depth = 1;
+
+                num_points = size(Data, 2);
+
+                obj.MaxLeafSize = MaxLeafSize;
+                obj.MinLeafWidth = MinLeafWidth;
+                obj.MaxDepth = MaxDepth;
+
+                % Preallocate the list of nodes 
+                %obj.NodeList(2^MaxDepth) = OctreeNode;
+                obj.NodeList = OctreeNode.empty(2^MaxDepth,0);
+                obj.LeafNodeList = int32.empty(ceil(num_points / MaxLeafSize), 0);
+                obj.NodesPerLevelList = cell([1, MaxDepth]);
+
+                [obj.Data, obj.NewFromOld] = sort(Data);
+
+                root_node = OctreeNode(1, num_points, 1, obj.Data(1), obj.Data(end), 1);
+
+                obj.NodeSize = obj.Data(end) - obj.Data(1);
+
+                SplitNode(obj, root_node);
+
+                FillInLists(obj, root_node, root_node);
+
+            end
             
         end
         
@@ -70,10 +76,6 @@ classdef Octree1DClass < handle
                 
                 split_val = (node.MinVal + node.MaxVal) / 2;
 
-                % should be the index of the last point in the left child
-                % TODO: implement this non-stupidly
-                begin = node.Begin;
-                endval = node.End;
                 split_index = find((this.Data(:, node.Begin:node.End) < split_val), 1, 'last');
                 % if the split index is empty, then all the points go on
                 % the right side
@@ -216,19 +218,19 @@ classdef Octree1DClass < handle
             
             while (num_sampled < num_points)
             
-                sample_ind = random(1, num_possible_points);
+                sample_ind = randi(num_possible_points);
                 sample_point = this.Data(possible_inds(sample_ind));
                 dist = node.MinDistance(sample_point);
                 
                 if (dist >= width) 
                     InterpolationInds(num_sampled+1) = possible_inds(sample_ind);
+                    num_sampled = num_sampled + 1;
                 end
                 
                 temp = possible_inds(total_points - num_sampled);
                 possible_inds(total_points - num_sampled) = possible_inds(sample_ind);
                 possible_inds(sample_ind) = temp;
                 
-                num_sampled = num_sampled + 1;
                 num_possible_points = num_possible_points - 1;
                 
             end

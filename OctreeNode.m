@@ -47,8 +47,17 @@ classdef OctreeNode < handle
         OutgoingSkeleton
         OutgoingSkeletonSize
         
+        % the number of outgoing skeleton points that came from the left
+        % (right) child
+        % unspecified for leaves
+        NumOutLeft
+        NumOutRight
+        
         IncomingSkeleton
         IncomingSkeletonSize
+        
+        NumInLeft
+        NumInRight
         
         OIMatrices
         
@@ -79,6 +88,8 @@ classdef OctreeNode < handle
                     %obj.NearFieldList = OctreeNode.empty(2, 0);
                     obj.NearFieldList = int32.empty(2,0);
                     
+                    obj.OIMatrices = cell([1,10]);
+                    
                 else
                     obj.Index = -1;
                 end
@@ -91,7 +102,7 @@ classdef OctreeNode < handle
            
             this.ProjMatrix = child.ProjMatrix;
             this.OutgoingSkeleton = child.OutgoingSkeleton;
-            this.OutgoingSkeletonSize = child.OutoingSkeletonSize;
+            this.OutgoingSkeletonSize = child.OutgoingSkeletonSize;
             this.IncomingSkeleton = child.IncomingSkeleton;
             this.IncomingSkeletonSize = child.IncomingSkeletonSize;
            

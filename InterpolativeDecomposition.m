@@ -7,11 +7,17 @@ function [Acol, proj, skeleton] = InterpolativeDecomposition(A)
 % skeleton is an array of the indices of the columns of A that appear in
 % Acol
 
-    k = rank(A, 1e-15);
-    
-    % now, we need ell Gaussian iid columns, but how to choose ell?
+% IMPORTANT: we're assuming that the columns that appear in Acol are in the
+% same order they were in in A
 
+    %k = rank(A, 1e-15);
     
+
+    % As a debugging measure, compute the trivial decomposition that
+    % consists of all columns
+    Acol = A;
+    proj = eye(size(A));
+    skeleton = 1:size(A,2);
     
     
 
