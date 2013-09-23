@@ -49,7 +49,7 @@ classdef KIFMM < handle
             end
         end
 
-        function ComputePotentials(this, charges)
+        function potentials = ComputePotentials(this, charges)
             
             % First, permute the charges in the same way we permuted the
             % points in the tree
@@ -195,7 +195,13 @@ classdef KIFMM < handle
             end
             
             % now, unpermute the potentials for output
+            potentials = zeros(this.NumPoints, 1);
             
+            for i = 1:this.NumPoints
+               
+                potentials(this.Tree.NewFromOld(i)) = this.Potentials(i);
+                
+            end
             
         end
         
@@ -414,6 +420,28 @@ classdef KIFMM < handle
                     end
 
                 end
+            end
+            
+        end
+        
+        function potentials = ComputePotentialsNaive(this, data, charges)
+           
+            num_points = size(data, 2);
+            potentials = zeros(num_points, 1);
+            
+            for i = 1:num_points
+                
+                this_potential = 0;
+                
+                for j = 1:num_points
+                   
+                    this_ker = this.Kernel.eval(data(i), data(j));
+                    this_potential = this_potential + this_ker * charges(j);
+                    
+                end
+                
+                potentials(i) = this_potential;
+                
             end
             
         end
