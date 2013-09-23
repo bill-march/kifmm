@@ -80,6 +80,8 @@ classdef OctreeNode < handle
                     obj.End = begin + count - 1;
                     obj.HasLeft = false;
                     obj.HasRight = false;
+                    obj.NumOutLeft = 0;
+                    obj.NumOutRight = 0;
                     obj.Index = index;
                     
                     %obj.InteractionList = OctreeNode.empty(2, 0);
@@ -101,6 +103,7 @@ classdef OctreeNode < handle
         function CopySkeletons(this, child)
            
             this.ProjMatrix = child.ProjMatrix;
+            this.EvalMatrix = child.EvalMatrix;
             this.OutgoingSkeleton = child.OutgoingSkeleton;
             this.OutgoingSkeletonSize = child.OutgoingSkeletonSize;
             this.IncomingSkeleton = child.IncomingSkeleton;

@@ -15,8 +15,9 @@ function [Acol, proj, skeleton] = InterpolativeDecomposition(A)
 
     % As a debugging measure, compute the trivial decomposition that
     % consists of all columns
+    % so, k is the number of columns of A
     Acol = A;
-    proj = eye(size(A));
+    proj = eye(size(A,2));
     skeleton = 1:size(A,2);
     
     
