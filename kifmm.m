@@ -19,8 +19,6 @@ classdef KIFMM < handle
         
         Kernel
         
-        NumInterpolationPoints
-        
         
     end
     
@@ -28,7 +26,7 @@ classdef KIFMM < handle
     methods
         
         % Main function for kernel-independent fmm
-        function obj = KIFMM(data, max_leaf_count, min_node_size, max_tree_depth, kernel, num_interpolation_points)
+        function obj = KIFMM(data, max_leaf_count, min_node_size, max_tree_depth, kernel)
 
             if (nargin > 0)
                 obj.MaxLeafCount = max_leaf_count;
@@ -42,8 +40,6 @@ classdef KIFMM < handle
                 obj.NumPoints = size(obj.Data, 2);
 
                 obj.Kernel = kernel;
-
-                obj.NumInterpolationPoints = num_interpolation_points;
 
                 obj.PrecomputeRepresentation();
             end
@@ -170,9 +166,6 @@ classdef KIFMM < handle
                 for point_ind = leaf_node.Begin:leaf_node.End
                    
                     point = this.Data(point_ind);
-                    charge = this.Charges(point_ind);
-                    
-                    this.Potentials(point_ind) = this.Potentials(point_ind) + this.Kernel.eval(point, point) * charge;
                     
                     num_neighbors = size(leaf_node.NearFieldList, 2);
                     for n_node_ind = 1:num_neighbors
@@ -190,12 +183,23 @@ classdef KIFMM < handle
                         
                     end
                     
+                    % now, do the self-interactions
+                    for op_ind = leaf_node.Begin:leaf_node.End
+                       
+                        op = this.Data(op_ind);
+                        op_charge = this.Charges(op_ind);
+                        this.Potentials(point_ind) = this.Potentials(point_ind) + this.Kernel.eval(point, op) * op_charge;
+                        
+                    end
+                    
                 end
                 
             end
             
             % now, unpermute the potentials for output
             potentials = zeros(this.NumPoints, 1);
+            
+            this.Tree.NewFromOld
             
             for i = 1:this.NumPoints
                
@@ -217,36 +221,19 @@ classdef KIFMM < handle
                 leaf_ind = this.Tree.LeafNodeList(i);
                 leaf_node = this.Tree.NodeList(leaf_ind);
                 
-                leaf_node.InterpolationPoints = this.Tree.SampleFarField(leaf_node, this.NumInterpolationPoints);
-                num_interpolation_points = size(leaf_node.InterpolationPoints, 2);
+                interpolation_points = this.Tree.SampleFarField(leaf_node);
 
-                direct_matrix = zeros(this.NumInterpolationPoints, leaf_node.Count);
-                direct_matrix_trans = zeros(this.NumInterpolationPoints, leaf_node.Count);
-
-                for j = 1:num_interpolation_points
-
-                   for k = 1:leaf_node.Count
-
-                       direct_matrix(j,k) = this.Kernel.eval(this.Data(leaf_node.InterpolationPoints(j)), this.Data(k + leaf_node.Begin - 1));
-                        % we're transposing this in place 
-                        % note that for symmetric kernels, these matrices
-                        % are each other's transpose
-                       direct_matrix_trans(j,k) = this.Kernel.eval(this.Data(k + leaf_node.Begin - 1), this.Data(leaf_node.InterpolationPoints(j)));
-
-                   end
-
-               end
-
-               [Acol, proj, skeleton] = InterpolativeDecomposition(direct_matrix);
+               [direct_matrix, proj, skeleton] = InterpolativeDecomposition(this.Data, interpolation_points, leaf_node.Begin:leaf_node.End, this.Kernel);
                
                leaf_node.OutgoingSkeletonSize = size(skeleton, 2);
-               leaf_node.OutgoingSkeleton = skeleton + leaf_node.Begin - 1;
+               leaf_node.OutgoingSkeleton = skeleton;
                leaf_node.ProjMatrix = proj;
                
                %also, compute the incoming representation
-               [Brow_trans, eval_trans, iskel] = InterpolativeDecomposition(direct_matrix_trans);
+               % IMPORTANT: this doesn't allow for non-symmetric kernels 
+               [direct_matrix_trans, eval_trans, iskel] = InterpolativeDecomposition(this.Data, interpolation_points, leaf_node.Begin:leaf_node.End, this.Kernel);
                leaf_node.IncomingSkeletonSize = size(iskel, 2);
-               leaf_node.IncomingSkeleton = iskel + leaf_node.Begin - 1;
+               leaf_node.IncomingSkeleton = iskel;
                leaf_node.EvalMatrix = eval_trans';
                
                
@@ -307,61 +294,30 @@ classdef KIFMM < handle
                             
                             % need to merge them
                             
-                            node.InterpolationPoints = this.Tree.SampleFarField(node, this.NumInterpolationPoints);
-                            num_interpolation_points = size(node.InterpolationPoints, 2);
-
+                            interpolation_points = this.Tree.SampleFarField(node);
+                            
                             % we're assuming that the skeletons are
                             % disjoint because the nodes are disjoint
                             %merged_skeletons = union(left_node.OutgoingSkeleton, right_node.OutgoingSkeleton);
                             merged_skeletons = [left_node.OutgoingSkeleton, right_node.OutgoingSkeleton];
-                            num_child_skeletons = size(merged_skeletons, 2);
                             
                             merged_out_skel = [left_node.IncomingSkeleton, right_node.IncomingSkeleton];
-                            num_child_out = size(merged_out_skel,2);
-                            
-                            A = zeros(num_interpolation_points, num_child_skeletons);
-                            A_eval = zeros(num_interpolation_points, num_child_out);
-                            
-                            for j = 1:num_interpolation_points
-                               
-                                j_point = this.Data(node.InterpolationPoints(j));
-                                
-                                for k = 1:num_child_skeletons
-
-                                    k_point = this.Data(merged_skeletons(k));
-                                    A(j,k) = this.Kernel.eval(j_point, k_point);
-                                    
-                                    
-                                end
-                                
-                                for k = 1:num_child_out
-                                   
-                                    k_point = this.Data(merged_out_skel(k));
-                                    A_eval(j,k) = this.Kernel.eval(k_point, j_point);
-                                    
-                                end
-
-                            end
                             
                             % now, we've formed the matrix A, so decompose
                             % it
-                            [this_Acol, Z, skel] = InterpolativeDecomposition(A);
+                            [this_Acol, Z, skel] = InterpolativeDecomposition(this.Data, interpolation_points, merged_skeletons, this.Kernel);
                             node.ProjMatrix = Z;
-                            node.OutgoingSkeleton = skel + node.Begin - 1;
+                            node.OutgoingSkeleton = skel;
                             node.OutgoingSkeletonSize = size(skel,2);
                             
-                            [this_Brow, Zeval, iskel] = InterpolativeDecomposition(A_eval);
+                            [this_Brow, Zeval, iskel] = InterpolativeDecomposition(this.Data, interpolation_points, merged_out_skel, this.Kernel);
                             node.EvalMatrix = Zeval';
-                            node.IncomingSkeleton = iskel + node.Begin - 1;
+                            node.IncomingSkeleton = iskel;
                             node.IncomingSkeletonSize = size(iskel,2);
                             
                             % need to set the indices in the node
                             [row, first_right_ind_out] = find(node.OutgoingSkeleton > left_node.End, 1, 'first');
                             [row, first_right_ind_in] = find(node.IncomingSkeleton > left_node.End, 1, 'first');
-                            
-                            if (first_right_ind_out == 0) 
-                                'found it'
-                            end
                             
                             node.NumOutLeft = first_right_ind_out - 1;
                             node.NumOutRight = node.OutgoingSkeletonSize - node.NumOutLeft;

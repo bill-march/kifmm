@@ -39,8 +39,6 @@ classdef OctreeNode < handle
         
         %%%%%%%%%%%%%%%%%%%%%%%%%%%
         
-        InterpolationPoints
-        
         ProjMatrix
         EvalMatrix
 
@@ -109,8 +107,6 @@ classdef OctreeNode < handle
             this.IncomingSkeleton = child.IncomingSkeleton;
             this.IncomingSkeletonSize = child.IncomingSkeletonSize;
            
-            this.InterpolationPoints = child.InterpolationPoints;
-            
         end
         
         function res = is_empty(this)

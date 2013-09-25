@@ -68,7 +68,6 @@ classdef Octree1DClass < handle
             this.NodeList(node.Index) = node;
             this.NodesPerLevelList{node.Depth}(end+1) = node.Index;
             
-            % fill me in
             node_width = node.MaxVal - node.MinVal;
 
             % can we split the node at all?
@@ -204,37 +203,38 @@ classdef Octree1DClass < handle
 
         end
         
-        % this should mostly work
-        function [InterpolationInds] = SampleFarField(this, node, num_points)
+        function [InterpolationInds] = SampleFarField(this, node)
             
-            num_sampled = 0;
+            % everything is far field
+            InterpolationInds = 1:size(this.Data, 2);
             
-            width = node.MaxVal - node.MinVal;
+            % now, take away the points that aren't
             
-            total_points = size(this.Data, 2);
-            InterpolationInds = zeros(1,num_points);
-            possible_inds = 1:total_points;
-            num_possible_points = total_points;
+            % take out the stuff in node
+            InterpolationInds = setdiff(InterpolationInds, node.Begin:node.End);
             
-            while (num_sampled < num_points)
-            
-                sample_ind = randi(num_possible_points);
-                sample_point = this.Data(possible_inds(sample_ind));
-                dist = node.MinDistance(sample_point);
+            % take out the stuff in left and right neighbors of node
+            left_index = node.Index - 1;
+            if (left_index > 0 && ~this.NodeList(left_index).is_empty()) 
                 
-                if (dist >= width) 
-                    InterpolationInds(num_sampled+1) = possible_inds(sample_ind);
-                    num_sampled = num_sampled + 1;
+                left_node = this.NodeList(left_index);
+                
+                % make sure we're not wrapping around
+                if (left_node.Depth == node.Depth) 
+                    InterpolationInds = setdiff(InterpolationInds, left_node.Begin:left_node.End);
                 end
-                
-                temp = possible_inds(total_points - num_sampled);
-                possible_inds(total_points - num_sampled) = possible_inds(sample_ind);
-                possible_inds(sample_ind) = temp;
-                
-                num_possible_points = num_possible_points - 1;
                 
             end
             
+            right_index = node.Index + 1;
+            if (right_index <= size(this.NodeList, 2) && ~this.NodeList(right_index).is_empty()) 
+                
+                right_node = this.NodeList(right_index);
+                if (right_node.Depth == node.Depth) 
+                    InterpolationInds = setdiff(InterpolationInds, right_node.Begin:right_node.End);
+                end
+            end
+                        
         end
         
     end
