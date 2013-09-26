@@ -223,7 +223,7 @@ classdef KIFMM < handle
                 
                 interpolation_points = this.Tree.SampleFarField(leaf_node);
 
-               [direct_matrix, proj, skeleton] = InterpolativeDecomposition(this.Data, interpolation_points, leaf_node.Begin:leaf_node.End, this.Kernel);
+               [direct_matrix, proj, skeleton] = DecomposeKernel(this.Data, interpolation_points, leaf_node.Begin:leaf_node.End, this.Kernel);
                
                leaf_node.OutgoingSkeletonSize = size(skeleton, 2);
                leaf_node.OutgoingSkeleton = skeleton;
@@ -231,7 +231,7 @@ classdef KIFMM < handle
                
                %also, compute the incoming representation
                % IMPORTANT: this doesn't allow for non-symmetric kernels 
-               [direct_matrix_trans, eval_trans, iskel] = InterpolativeDecomposition(this.Data, interpolation_points, leaf_node.Begin:leaf_node.End, this.Kernel);
+               [direct_matrix_trans, eval_trans, iskel] = DecomposeKernel(this.Data, interpolation_points, leaf_node.Begin:leaf_node.End, this.Kernel);
                leaf_node.IncomingSkeletonSize = size(iskel, 2);
                leaf_node.IncomingSkeleton = iskel;
                leaf_node.EvalMatrix = eval_trans';
@@ -305,12 +305,12 @@ classdef KIFMM < handle
                             
                             % now, we've formed the matrix A, so decompose
                             % it
-                            [this_Acol, Z, skel] = InterpolativeDecomposition(this.Data, interpolation_points, merged_skeletons, this.Kernel);
+                            [this_Acol, Z, skel] = DecomposeKernel(this.Data, interpolation_points, merged_skeletons, this.Kernel);
                             node.ProjMatrix = Z;
                             node.OutgoingSkeleton = skel;
                             node.OutgoingSkeletonSize = size(skel,2);
                             
-                            [this_Brow, Zeval, iskel] = InterpolativeDecomposition(this.Data, interpolation_points, merged_out_skel, this.Kernel);
+                            [this_Brow, Zeval, iskel] = DecomposeKernel(this.Data, interpolation_points, merged_out_skel, this.Kernel);
                             node.EvalMatrix = Zeval';
                             node.IncomingSkeleton = iskel;
                             node.IncomingSkeletonSize = size(iskel,2);
