@@ -122,8 +122,8 @@ classdef OctreeNode < handle
         function Print(this)
            
             'Node:'
-            begin = this.Begin
-            count = this.Count
+            this.Begin
+            this.Count
             
         end
         

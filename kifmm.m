@@ -19,6 +19,8 @@ classdef KIFMM < handle
         
         Kernel
         
+        SkeletonSize
+        
         
     end
     
@@ -26,12 +28,14 @@ classdef KIFMM < handle
     methods
         
         % Main function for kernel-independent fmm
-        function obj = KIFMM(data, max_leaf_count, min_node_size, max_tree_depth, kernel)
+        function obj = KIFMM(data, max_leaf_count, min_node_size, max_tree_depth, skeleton_size, kernel)
 
             if (nargin > 0)
                 obj.MaxLeafCount = max_leaf_count;
                 obj.MinNodeSize = min_node_size;
                 obj.MaxTreeDepth = max_tree_depth;
+                
+                obj.SkeletonSize = skeleton_size;
 
                 obj.Tree = Octree1DClass(data, max_leaf_count, min_node_size, max_tree_depth);
 
@@ -43,6 +47,28 @@ classdef KIFMM < handle
 
                 obj.PrecomputeRepresentation();
             end
+        end
+        
+         
+        function [proj, skeleton] = DecomposeKernel(this, row_inds, col_inds)
+
+            Acol = this.Kernel.eval_mat(this.Data, row_inds, col_inds);
+            
+            [proj, skel] = InterpolativeDecomposition(Acol, this.SkeletonSize);
+            
+            % assuming that the column inds are contiguous
+            skeleton = skel + col_inds(1) - 1;
+            
+            
+        end
+        
+        function [eval, skeleton] = DecomposeKernelTrans(this, row_inds, col_inds)
+           
+            B = this.Kernel.eval_mat(this.Data, row_inds, col_inds);
+            [proj,skel] = InterpolativeDecomposition(B', this.SkeletonSize);
+            skeleton = skel + row_inds(1) - 1;
+            eval = proj';
+            
         end
 
         function potentials = ComputePotentials(this, charges)
@@ -91,12 +117,12 @@ classdef KIFMM < handle
                         
                         if (~left_node.is_empty()) 
                             %node.PsiVector = node.PsiVector + node.ProjMatrix(:,1:node.NumOutLeft) * this.Data(left_node.OutgoingSkeleton) * this.Charges(left_node.OutgoingSkeleton);
-                            node.PsiVector = node.PsiVector + node.ProjMatrix(:,1:node.NumOutLeft) * left_node.PsiVector;
+                            node.PsiVector = node.PsiVector + node.ProjMatrix(:,1:left_node.OutgoingSkeletonSize) * left_node.PsiVector;
                         end
                         
                         if (~right_node.is_empty())
                             %node.PsiVector = node.PsiVector + node.ProjMatrix(:, node.NumOutLeft+1:end) * this.Data(right_node.OutgoingSkeleton) * this.Charges(right_node.OutgoingSkeleton);
-                            node.PsiVector = node.PsiVector + node.ProjMatrix(:,node.NumOutLeft+1:end) * right_node.PsiVector;
+                            node.PsiVector = node.PsiVector + node.ProjMatrix(:,end-right_node.OutgoingSkeletonSize+1:end) * right_node.PsiVector;
                         end
                         
                     end
@@ -107,12 +133,14 @@ classdef KIFMM < handle
             
             % Downward pass
             
-            this.Tree.NodeList(1).PhiVector = zeros(this.NumPoints, 1);
-            this.Tree.NodeList(2).PhiVector = zeros(this.Tree.NodeList(2).Count, 1);
-            this.Tree.NodeList(3).PhiVector = zeros(this.Tree.NodeList(3).Count, 1);
+            % initialize the top of the tree to be empty
+            this.Tree.NodeList(1).PhiVector = zeros(this.SkeletonSize,1);
             
-            this.Tree.NodeList(2).EvalMatrix = eye(this.Tree.NodeList(2).Count);
-            this.Tree.NodeList(3).EvalMatrix = eye(this.Tree.NodeList(3).Count);
+            this.Tree.NodeList(2).PhiVector = zeros(this.SkeletonSize, 1);
+            this.Tree.NodeList(3).PhiVector = zeros(this.SkeletonSize, 1);
+            
+            this.Tree.NodeList(2).EvalMatrix = eye(2 * this.SkeletonSize, this.SkeletonSize);
+            this.Tree.NodeList(3).EvalMatrix = eye(2 * this.SkeletonSize, this.SkeletonSize);
             
             for level = 3:this.Tree.MaxDepth
                
@@ -130,9 +158,9 @@ classdef KIFMM < handle
                     is_left = (mod(node.Index, 2) == 0);
                     
                     if (is_left) 
-                        node.PhiVector = parent_node.EvalMatrix(1:node.Count,:) * parent_node.PhiVector;
+                        node.PhiVector = parent_node.EvalMatrix(1:node.IncomingSkeletonSize,:) * parent_node.PhiVector;
                     else
-                        node.PhiVector = parent_node.EvalMatrix(node.Begin - parent_node.Begin + 1:end, :) * parent_node.PhiVector;
+                        node.PhiVector = parent_node.EvalMatrix(end - node.IncomingSkeletonSize + 1:end,:) * parent_node.PhiVector;
                     end
                     
                     num_interacting = size(node.InteractionList, 2);
@@ -199,13 +227,7 @@ classdef KIFMM < handle
             % now, unpermute the potentials for output
             potentials = zeros(this.NumPoints, 1);
             
-            this.Tree.NewFromOld
-            
-            for i = 1:this.NumPoints
-               
-                potentials(this.Tree.NewFromOld(i)) = this.Potentials(i);
-                
-            end
+            potentials(this.Tree.NewFromOld) = this.Potentials;
             
         end
         
@@ -223,19 +245,17 @@ classdef KIFMM < handle
                 
                 interpolation_points = this.Tree.SampleFarField(leaf_node);
 
-               [direct_matrix, proj, skeleton] = DecomposeKernel(this.Data, interpolation_points, leaf_node.Begin:leaf_node.End, this.Kernel);
+               [proj, skeleton] = this.DecomposeKernel(interpolation_points, leaf_node.Begin:leaf_node.End);
                
                leaf_node.OutgoingSkeletonSize = size(skeleton, 2);
                leaf_node.OutgoingSkeleton = skeleton;
                leaf_node.ProjMatrix = proj;
                
                %also, compute the incoming representation
-               % IMPORTANT: this doesn't allow for non-symmetric kernels 
-               [direct_matrix_trans, eval_trans, iskel] = DecomposeKernel(this.Data, interpolation_points, leaf_node.Begin:leaf_node.End, this.Kernel);
+               [eval, iskel] = this.DecomposeKernelTrans(leaf_node.Begin:leaf_node.End, interpolation_points);
                leaf_node.IncomingSkeletonSize = size(iskel, 2);
                leaf_node.IncomingSkeleton = iskel;
-               leaf_node.EvalMatrix = eval_trans';
-               
+               leaf_node.EvalMatrix = eval;
                
             end
             
@@ -305,19 +325,19 @@ classdef KIFMM < handle
                             
                             % now, we've formed the matrix A, so decompose
                             % it
-                            [this_Acol, Z, skel] = DecomposeKernel(this.Data, interpolation_points, merged_skeletons, this.Kernel);
+                            [Z, skel] = this.DecomposeKernel(interpolation_points, merged_skeletons);
                             node.ProjMatrix = Z;
                             node.OutgoingSkeleton = skel;
                             node.OutgoingSkeletonSize = size(skel,2);
                             
-                            [this_Brow, Zeval, iskel] = DecomposeKernel(this.Data, interpolation_points, merged_out_skel, this.Kernel);
-                            node.EvalMatrix = Zeval';
+                            [Zeval, iskel] = this.DecomposeKernelTrans(merged_out_skel, interpolation_points);
+                            node.EvalMatrix = Zeval;
                             node.IncomingSkeleton = iskel;
                             node.IncomingSkeletonSize = size(iskel,2);
                             
                             % need to set the indices in the node
-                            [row, first_right_ind_out] = find(node.OutgoingSkeleton > left_node.End, 1, 'first');
-                            [row, first_right_ind_in] = find(node.IncomingSkeleton > left_node.End, 1, 'first');
+                            [~, first_right_ind_out] = find(node.OutgoingSkeleton > left_node.End, 1, 'first');
+                            [~, first_right_ind_in] = find(node.IncomingSkeleton > left_node.End, 1, 'first');
                             
                             node.NumOutLeft = first_right_ind_out - 1;
                             node.NumOutRight = node.OutgoingSkeletonSize - node.NumOutLeft;
@@ -379,6 +399,7 @@ classdef KIFMM < handle
             end
             
         end
+       
         
         function potentials = ComputePotentialsNaive(this, data, charges)
            
