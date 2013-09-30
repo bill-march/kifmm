@@ -27,14 +27,6 @@ function [proj, skeleton] = InterpolativeDecomposition(A, k)
     
     % Want X s.t. B(:,1:k) X = B
     proj = B(:,skeleton) \ B;
-    
-    Aapprox = A(:,skeleton) * proj;
-    
-    err = norm(A - Aapprox);
-    
-    if (err > 1e-12) 
-       'found error in ID' 
-    end
-    
+        
 end
 

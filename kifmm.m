@@ -165,51 +165,9 @@ classdef KIFMM < handle
                         
                         oi_mat = node.OIMatrices{j};
                         
-                        this_cont = oi_mat * int_node.PsiVector;
-                        
-                        this_naive_mat = this.Kernel.eval_mat(this.Data, node.IncomingSkeleton, int_node.Begin:int_node.End);
-                        this_naive_cont = this_naive_mat * this.Charges(int_node.Begin:int_node.End);
-                        
-                        this_err = norm(this_cont - this_naive_cont);
-                        
-                        if (this_err > 1e-5) 
-                            'found big error for particular interaction'
-                        end
-                        
                         node.PhiVector = node.PhiVector + oi_mat * int_node.PsiVector;
                         
                     end
-                    
-%                     far_field = this.Tree.SampleFarField(node);
-% 
-%                     tree_eval = this.DecomposeMatrixTrans();
-%                     tree_pot = tree_eval * node.PhiVector;
-%                         
-%                     
-%                     
-%                     % it's not for my incoming skeleton, its the merger
-%                     % of my children's skeletons?
-%                     left_ind = node.Index * 2;
-%                     left_node = this.Tree.NodeList(left_ind);
-%                     right_ind = left_ind  + 1;
-%                     right_node = this.Tree.NodeList(right_ind);
-% 
-% 
-%                     eval_inds = [];
-%                     if (~left_node.is_empty()) 
-%                         eval_inds = left_node.IncomingSkeleton;
-%                     end
-% 
-%                     if (~right_node.is_empty()) 
-%                         eval_inds = [eval_inds, right_node.IncomingSkeleton];
-%                     end
-% 
-%                     naive_pot = this.Kernel.eval_mat(this.Data, eval_inds, far_field) * this.Charges(far_field);
-% 
-%                     err = norm(tree_pot - naive_pot);
-%                     if (err > 1e-5)
-%                        'found error over all interactions' 
-%                     end
                     
                 end
                 
