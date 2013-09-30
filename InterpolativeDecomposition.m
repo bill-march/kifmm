@@ -10,7 +10,8 @@ function [proj, skeleton] = InterpolativeDecomposition(A, k)
 
     % for now, just going with the bare QR decomposition version
     
-    % we can't take more columns of A than exist
+    % we can't take more columns of A than exist, and we don't want the
+    % linear system below to be ill conditioned
     r = rank(A);
     k = min(r,k);
 
@@ -22,19 +23,18 @@ function [proj, skeleton] = InterpolativeDecomposition(A, k)
     
     skeleton = perm(1:k);
     
-    % Want X s.t. R(:,1:k) X = R
-    size(A)
-    proj = R(:,1:k) \ R
+    B(:,perm) = R;
     
-    proj(:,perm) = proj;
+    % Want X s.t. B(:,1:k) X = B
+    proj = B(:,skeleton) \ B;
     
-    %Aapprox = A(:,skeleton) * proj;
+    Aapprox = A(:,skeleton) * proj;
     
-    %err = norm(A - Aapprox)
+    err = norm(A - Aapprox);
     
-    %if (err > 1e-15)
-    %    'found it'
-    %end
+    if (err > 1e-12) 
+       'found error in ID' 
+    end
     
 end
 

@@ -54,19 +54,14 @@ classdef KIFMM < handle
 
             Acol = this.Kernel.eval_mat(this.Data, row_inds, col_inds);
             
-            [proj, skel] = InterpolativeDecomposition(Acol, this.SkeletonSize);
-            
-            % assuming that the column inds are contiguous
-            skeleton = skel + col_inds(1) - 1;
-            
+            [proj, skeleton] = InterpolativeDecomposition(Acol, this.SkeletonSize);
             
         end
         
         function [eval, skeleton] = DecomposeKernelTrans(this, row_inds, col_inds)
            
-            B = this.Kernel.eval_mat(this.Data, row_inds, col_inds);
-            [proj,skel] = InterpolativeDecomposition(B', this.SkeletonSize);
-            skeleton = skel + row_inds(1) - 1;
+            Btrans = this.Kernel.eval_mat(this.Data, col_inds, row_inds);
+            [proj,skeleton] = InterpolativeDecomposition(Btrans, this.SkeletonSize);
             eval = proj';
             
         end
@@ -116,12 +111,10 @@ classdef KIFMM < handle
                         node.PsiVector = zeros(node.OutgoingSkeletonSize,1);
                         
                         if (~left_node.is_empty()) 
-                            %node.PsiVector = node.PsiVector + node.ProjMatrix(:,1:node.NumOutLeft) * this.Data(left_node.OutgoingSkeleton) * this.Charges(left_node.OutgoingSkeleton);
                             node.PsiVector = node.PsiVector + node.ProjMatrix(:,1:left_node.OutgoingSkeletonSize) * left_node.PsiVector;
                         end
                         
                         if (~right_node.is_empty())
-                            %node.PsiVector = node.PsiVector + node.ProjMatrix(:, node.NumOutLeft+1:end) * this.Data(right_node.OutgoingSkeleton) * this.Charges(right_node.OutgoingSkeleton);
                             node.PsiVector = node.PsiVector + node.ProjMatrix(:,end-right_node.OutgoingSkeletonSize+1:end) * right_node.PsiVector;
                         end
                         
@@ -172,9 +165,51 @@ classdef KIFMM < handle
                         
                         oi_mat = node.OIMatrices{j};
                         
+                        this_cont = oi_mat * int_node.PsiVector;
+                        
+                        this_naive_mat = this.Kernel.eval_mat(this.Data, node.IncomingSkeleton, int_node.Begin:int_node.End);
+                        this_naive_cont = this_naive_mat * this.Charges(int_node.Begin:int_node.End);
+                        
+                        this_err = norm(this_cont - this_naive_cont);
+                        
+                        if (this_err > 1e-5) 
+                            'found big error for particular interaction'
+                        end
+                        
                         node.PhiVector = node.PhiVector + oi_mat * int_node.PsiVector;
                         
                     end
+                    
+%                     far_field = this.Tree.SampleFarField(node);
+% 
+%                     tree_eval = this.DecomposeMatrixTrans();
+%                     tree_pot = tree_eval * node.PhiVector;
+%                         
+%                     
+%                     
+%                     % it's not for my incoming skeleton, its the merger
+%                     % of my children's skeletons?
+%                     left_ind = node.Index * 2;
+%                     left_node = this.Tree.NodeList(left_ind);
+%                     right_ind = left_ind  + 1;
+%                     right_node = this.Tree.NodeList(right_ind);
+% 
+% 
+%                     eval_inds = [];
+%                     if (~left_node.is_empty()) 
+%                         eval_inds = left_node.IncomingSkeleton;
+%                     end
+% 
+%                     if (~right_node.is_empty()) 
+%                         eval_inds = [eval_inds, right_node.IncomingSkeleton];
+%                     end
+% 
+%                     naive_pot = this.Kernel.eval_mat(this.Data, eval_inds, far_field) * this.Charges(far_field);
+% 
+%                     err = norm(tree_pot - naive_pot);
+%                     if (err > 1e-5)
+%                        'found error over all interactions' 
+%                     end
                     
                 end
                 
@@ -190,7 +225,7 @@ classdef KIFMM < handle
                 leaf_node = this.Tree.NodeList(leaf_ind);
                 
                 this.Potentials(leaf_node.Begin:leaf_node.End) = leaf_node.EvalMatrix * leaf_node.PhiVector;
-                
+                                
                 for point_ind = leaf_node.Begin:leaf_node.End
                    
                     point = this.Data(point_ind);
@@ -248,14 +283,14 @@ classdef KIFMM < handle
                [proj, skeleton] = this.DecomposeKernel(interpolation_points, leaf_node.Begin:leaf_node.End);
                
                leaf_node.OutgoingSkeletonSize = size(skeleton, 2);
-               leaf_node.OutgoingSkeleton = skeleton;
-               leaf_node.ProjMatrix = proj;
+               [leaf_node.OutgoingSkeleton, sort_id] = sort(skeleton + leaf_node.Begin - 1);
+               leaf_node.ProjMatrix = proj(sort_id,:);
                
                %also, compute the incoming representation
                [eval, iskel] = this.DecomposeKernelTrans(leaf_node.Begin:leaf_node.End, interpolation_points);
                leaf_node.IncomingSkeletonSize = size(iskel, 2);
-               leaf_node.IncomingSkeleton = iskel;
-               leaf_node.EvalMatrix = eval;
+               [leaf_node.IncomingSkeleton, sort_id] = sort(iskel + leaf_node.Begin - 1);
+               leaf_node.EvalMatrix = eval(:,sort_id);
                
             end
             
@@ -272,6 +307,7 @@ classdef KIFMM < handle
                     
                     % skip it if it is a leaf, we already formed the
                     % matrices we need
+                    % this also checks that it's not empty
                     if (~node.IsLeaf()) 
                         
                         % form the ii and oo operators
@@ -321,18 +357,18 @@ classdef KIFMM < handle
                             %merged_skeletons = union(left_node.OutgoingSkeleton, right_node.OutgoingSkeleton);
                             merged_skeletons = [left_node.OutgoingSkeleton, right_node.OutgoingSkeleton];
                             
-                            merged_out_skel = [left_node.IncomingSkeleton, right_node.IncomingSkeleton];
+                            merged_in_skel = [left_node.IncomingSkeleton, right_node.IncomingSkeleton];
                             
                             % now, we've formed the matrix A, so decompose
                             % it
                             [Z, skel] = this.DecomposeKernel(interpolation_points, merged_skeletons);
-                            node.ProjMatrix = Z;
-                            node.OutgoingSkeleton = skel;
+                            [node.OutgoingSkeleton, sort_id] = sort(merged_skeletons(skel));
+                            node.ProjMatrix = Z(sort_id,:);
                             node.OutgoingSkeletonSize = size(skel,2);
                             
-                            [Zeval, iskel] = this.DecomposeKernelTrans(merged_out_skel, interpolation_points);
-                            node.EvalMatrix = Zeval;
-                            node.IncomingSkeleton = iskel;
+                            [Zeval, iskel] = this.DecomposeKernelTrans(merged_in_skel, interpolation_points);
+                            [node.IncomingSkeleton, sort_id] = sort(merged_in_skel(iskel));
+                            node.EvalMatrix = Zeval(:,sort_id);
                             node.IncomingSkeletonSize = size(iskel,2);
                             
                             % need to set the indices in the node
@@ -365,8 +401,6 @@ classdef KIFMM < handle
 
                     num_interacting = size(this_node.InteractionList, 2);
                 
-                    %this_node.OIMatrices = cell([1, num_interacting]);
-
                     for j = 1:num_interacting
 
                         int_ind = this_node.InteractionList(j);
@@ -374,23 +408,7 @@ classdef KIFMM < handle
 
                         % now, compute the oi operator between this_node and
                         % int_node
-
-                        this_oi = zeros(this_node.IncomingSkeletonSize, int_node.OutgoingSkeletonSize);
-
-                        for k = 1:this_node.IncomingSkeletonSize
-
-                            k_point = this.Data(this_node.IncomingSkeleton(k));
-
-                            for l = 1:int_node.OutgoingSkeletonSize
-
-                                l_point = this.Data(int_node.OutgoingSkeleton(l));
-
-                                this_oi(k,l) = this.Kernel.eval(k_point, l_point);
-
-                            end
-
-                        end
-
+                        this_oi = this.Kernel.eval_mat(this.Data, this_node.IncomingSkeleton, int_node.OutgoingSkeleton);
                         this_node.OIMatrices{j} = this_oi;
 
                     end
