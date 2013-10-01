@@ -16,10 +16,13 @@ classdef UnitaryKernel < handle
             
         end
         
-        function res = eval_mat(this, data, rows, cols)
+        function res = eval_mat(this, data, rows, cols, filter)
            
             res = ones(size(rows,2), size(cols,2));
-            
+            if (nargin > 4)
+                % this assumes the values in filter are ones
+                res = res .* filter;
+            end
         end
     
     end

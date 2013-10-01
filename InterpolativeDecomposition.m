@@ -1,4 +1,4 @@
-function [proj, skeleton] = InterpolativeDecomposition(A, k)
+function [proj, skeleton] = InterpolativeDecomposition(A, eps)
 %InterpolativeDecompostion -- Decompose the matrix as a linear combination
 %of k of its columns
 % proj is a k x N matrix (containing the k x k identity matrix as a
@@ -9,11 +9,7 @@ function [proj, skeleton] = InterpolativeDecomposition(A, k)
 % k is the number of columns to use in the decomposition
 
     % for now, just going with the bare QR decomposition version
-    
-    % we can't take more columns of A than exist, and we don't want the
-    % linear system below to be ill conditioned
-    r = rank(A);
-    k = min(r,k);
+    k = rank(A,eps);
 
     [~, R, perm] = qr(A,0);
     
@@ -27,6 +23,8 @@ function [proj, skeleton] = InterpolativeDecomposition(A, k)
     
     % Want X s.t. B(:,1:k) X = B
     proj = B(:,skeleton) \ B;
-        
+    
+    Aapprox = A(:,skeleton) * proj;
+            
 end
 

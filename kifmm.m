@@ -19,7 +19,11 @@ classdef KIFMM < handle
         
         Kernel
         
-        SkeletonSize
+        Epsilon
+        
+        Sampler
+        
+        NumKernelEvaluations
         
         
     end
@@ -28,14 +32,15 @@ classdef KIFMM < handle
     methods
         
         % Main function for kernel-independent fmm
-        function obj = KIFMM(data, max_leaf_count, min_node_size, max_tree_depth, skeleton_size, kernel)
+        function obj = KIFMM(data, max_leaf_count, min_node_size, max_tree_depth, epsilon, kernel, sampler)
 
             if (nargin > 0)
+                
                 obj.MaxLeafCount = max_leaf_count;
                 obj.MinNodeSize = min_node_size;
                 obj.MaxTreeDepth = max_tree_depth;
                 
-                obj.SkeletonSize = skeleton_size;
+                obj.Epsilon = epsilon;
 
                 obj.Tree = Octree1DClass(data, max_leaf_count, min_node_size, max_tree_depth);
 
@@ -45,23 +50,32 @@ classdef KIFMM < handle
 
                 obj.Kernel = kernel;
 
+                obj.Sampler = sampler;
+                
+                obj.NumKernelEvaluations = 0;
+                
                 obj.PrecomputeRepresentation();
+                
+                
             end
         end
         
          
-        function [proj, skeleton] = DecomposeKernel(this, row_inds, col_inds)
+        function [proj, skeleton] = DecomposeKernel(this, row_inds, col_inds, filter)
 
-            Acol = this.Kernel.eval_mat(this.Data, row_inds, col_inds);
+            [A, this_eval] = this.Kernel.eval_mat(this.Data, row_inds, col_inds, filter);
+            this.NumKernelEvaluations = this.NumKernelEvaluations + this_eval;
             
-            [proj, skeleton] = InterpolativeDecomposition(Acol, this.SkeletonSize);
+            [proj, skeleton] = InterpolativeDecomposition(A, this.Epsilon);
             
         end
         
-        function [eval, skeleton] = DecomposeKernelTrans(this, row_inds, col_inds)
+        function [eval, skeleton] = DecomposeKernelTrans(this, row_inds, col_inds, filter)
            
-            Btrans = this.Kernel.eval_mat(this.Data, col_inds, row_inds);
-            [proj,skeleton] = InterpolativeDecomposition(Btrans, this.SkeletonSize);
+            [Btrans, this_eval] = this.Kernel.eval_mat(this.Data, col_inds, row_inds, filter');
+            this.NumKernelEvaluations = this.NumKernelEvaluations + this_eval;
+            
+            [proj,skeleton] = InterpolativeDecomposition(Btrans, this.Epsilon);
             eval = proj';
             
         end
@@ -127,13 +141,15 @@ classdef KIFMM < handle
             % Downward pass
             
             % initialize the top of the tree to be empty
-            this.Tree.NodeList(1).PhiVector = zeros(this.SkeletonSize,1);
+            %this.Tree.NodeList(1).PhiVector = zeros(this.SkeletonSize,1);
             
-            this.Tree.NodeList(2).PhiVector = zeros(this.SkeletonSize, 1);
-            this.Tree.NodeList(3).PhiVector = zeros(this.SkeletonSize, 1);
+            % this is wasteful, but should be correct for any child
+            % skeleton sizes
+            this.Tree.NodeList(2).PhiVector = zeros(this.NumPoints, 1);
+            this.Tree.NodeList(3).PhiVector = zeros(this.NumPoints, 1);
             
-            this.Tree.NodeList(2).EvalMatrix = eye(2 * this.SkeletonSize, this.SkeletonSize);
-            this.Tree.NodeList(3).EvalMatrix = eye(2 * this.SkeletonSize, this.SkeletonSize);
+            this.Tree.NodeList(2).EvalMatrix = eye(this.NumPoints);
+            this.Tree.NodeList(3).EvalMatrix = eye(this.NumPoints);
             
             for level = 3:this.Tree.MaxDepth
                
@@ -199,6 +215,7 @@ classdef KIFMM < handle
                             n_charge = this.Charges(n_point_ind);
                             
                             this.Potentials(point_ind) = this.Potentials(point_ind) + this.Kernel.eval(point, n_point) * n_charge;
+                            this.NumKernelEvaluations = this.NumKernelEvaluations + 1;
                             
                         end
                         
@@ -210,7 +227,8 @@ classdef KIFMM < handle
                         op = this.Data(op_ind);
                         op_charge = this.Charges(op_ind);
                         this.Potentials(point_ind) = this.Potentials(point_ind) + this.Kernel.eval(point, op) * op_charge;
-                        
+                        this.NumKernelEvaluations = this.NumKernelEvaluations + 1;
+                            
                     end
                     
                 end
@@ -236,19 +254,22 @@ classdef KIFMM < handle
                 leaf_ind = this.Tree.LeafNodeList(i);
                 leaf_node = this.Tree.NodeList(leaf_ind);
                 
-                interpolation_points = this.Tree.SampleFarField(leaf_node);
+                [interpolation_points] = this.Tree.GetFarField(leaf_node);
 
-               [proj, skeleton] = this.DecomposeKernel(interpolation_points, leaf_node.Begin:leaf_node.End);
+                filter = this.Sampler.SampleFarField(interpolation_points, leaf_node.Begin:leaf_node.End);
+                
+                [proj, skeleton] = this.DecomposeKernel(interpolation_points, leaf_node.Begin:leaf_node.End, filter);
                
-               leaf_node.OutgoingSkeletonSize = size(skeleton, 2);
-               [leaf_node.OutgoingSkeleton, sort_id] = sort(skeleton + leaf_node.Begin - 1);
-               leaf_node.ProjMatrix = proj(sort_id,:);
+                leaf_node.OutgoingSkeletonSize = size(skeleton, 2);
+                [leaf_node.OutgoingSkeleton, sort_id] = sort(skeleton + leaf_node.Begin - 1);
+                leaf_node.ProjMatrix = proj(sort_id,:);
                
-               %also, compute the incoming representation
-               [eval, iskel] = this.DecomposeKernelTrans(leaf_node.Begin:leaf_node.End, interpolation_points);
-               leaf_node.IncomingSkeletonSize = size(iskel, 2);
-               [leaf_node.IncomingSkeleton, sort_id] = sort(iskel + leaf_node.Begin - 1);
-               leaf_node.EvalMatrix = eval(:,sort_id);
+                %also, compute the incoming representation
+                in_filter = this.Sampler.SampleFarField(leaf_node.Begin:leaf_node.End, interpolation_points);
+                [eval, iskel] = this.DecomposeKernelTrans(leaf_node.Begin:leaf_node.End, interpolation_points, in_filter);
+                leaf_node.IncomingSkeletonSize = size(iskel, 2);
+                [leaf_node.IncomingSkeleton, sort_id] = sort(iskel + leaf_node.Begin - 1);
+                leaf_node.EvalMatrix = eval(:,sort_id);
                
             end
             
@@ -308,7 +329,7 @@ classdef KIFMM < handle
                             
                             % need to merge them
                             
-                            interpolation_points = this.Tree.SampleFarField(node);
+                            [interpolation_points] = this.Tree.GetFarField(node);
                             
                             % we're assuming that the skeletons are
                             % disjoint because the nodes are disjoint
@@ -319,12 +340,15 @@ classdef KIFMM < handle
                             
                             % now, we've formed the matrix A, so decompose
                             % it
-                            [Z, skel] = this.DecomposeKernel(interpolation_points, merged_skeletons);
+                            filter = this.Sampler.SampleFarField(interpolation_points, merged_skeletons);
+                            
+                            [Z, skel] = this.DecomposeKernel(interpolation_points, merged_skeletons, filter);
                             [node.OutgoingSkeleton, sort_id] = sort(merged_skeletons(skel));
                             node.ProjMatrix = Z(sort_id,:);
                             node.OutgoingSkeletonSize = size(skel,2);
                             
-                            [Zeval, iskel] = this.DecomposeKernelTrans(merged_in_skel, interpolation_points);
+                            in_filter = this.Sampler.SampleFarField(merged_in_skel, interpolation_points);
+                            [Zeval, iskel] = this.DecomposeKernelTrans(merged_in_skel, interpolation_points, in_filter);
                             [node.IncomingSkeleton, sort_id] = sort(merged_in_skel(iskel));
                             node.EvalMatrix = Zeval(:,sort_id);
                             node.IncomingSkeletonSize = size(iskel,2);
@@ -366,7 +390,8 @@ classdef KIFMM < handle
 
                         % now, compute the oi operator between this_node and
                         % int_node
-                        this_oi = this.Kernel.eval_mat(this.Data, this_node.IncomingSkeleton, int_node.OutgoingSkeleton);
+                        [this_oi, this_eval] = this.Kernel.eval_mat(this.Data, this_node.IncomingSkeleton, int_node.OutgoingSkeleton);
+                        this.NumKernelEvaluations = this.NumKernelEvaluations + this_eval;
                         this_node.OIMatrices{j} = this_oi;
 
                     end

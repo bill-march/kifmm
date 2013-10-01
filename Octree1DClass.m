@@ -203,7 +203,7 @@ classdef Octree1DClass < handle
 
         end
         
-        function [InterpolationInds] = SampleFarField(this, node)
+        function [InterpolationInds] = GetFarField(this, node)
             
             % everything is far field
             InterpolationInds = 1:size(this.Data, 2);
