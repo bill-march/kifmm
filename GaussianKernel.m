@@ -2,15 +2,23 @@ classdef GaussianKernel < handle
    
     properties
         
-        Bandwidth 
+        Bandwidth
+        Scale 
+        
     end
     
     
     methods
        
-        function obj = GaussianKernel(band)
+        function obj = GaussianKernel(band, scale)
             
             obj.Bandwidth = band;
+            
+            if (nargin > 1)
+                obj.Scale = scale;
+            else 
+                obj.Scale = 1;
+            end
             
         end
         
@@ -25,25 +33,36 @@ classdef GaussianKernel < handle
            
             res = zeros(size(rows,2), size(cols,2));
                 
-            num_evals = 0;
-            
             if (nargin == 4)
               
-                for i = 1:size(rows,2)
-               
+                for i = 1:numel(rows)
+                   
                     point_i = data(rows(i));
-
-                    for j = 1:size(cols,2)
-
-                        point_j = data(cols(j));
-
-                        res(i,j) = this.eval(point_i,point_j);
-                        num_evals = num_evals + 1;
-                        
-                    end
-
+                    
+                    dists = (data(cols) - point_i).^2;
+                    res(i,:) = exp(-dists * this.Bandwidth);
+                    
                 end
-                 
+                
+%                 for i = 1:numel(rows)
+%                
+%                     point_i = data(rows(i));
+% 
+%                     for j = 1:numel(cols)
+% 
+%                         point_j = data(cols(j));
+% 
+%                         res(i,j) = this.eval(point_i,point_j);
+%                         
+%                     end
+% 
+%                 end
+%                 
+%                 num_evals = numel(rows) * numel(cols);
+                
+                
+                
+            
             else
                 % then we have a filter
                 [row_inds,col_inds] = find(filter);

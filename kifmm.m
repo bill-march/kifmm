@@ -64,6 +64,7 @@ classdef KIFMM < handle
         function [proj, skeleton] = DecomposeKernel(this, row_inds, col_inds, filter)
 
             [A, this_eval] = this.Kernel.eval_mat(this.Data, row_inds, col_inds, filter);
+            A = A / this.Sampler.Probability;
             this.NumKernelEvaluations = this.NumKernelEvaluations + this_eval;
             
             [proj, skeleton] = InterpolativeDecomposition(A, this.Epsilon);
@@ -73,6 +74,7 @@ classdef KIFMM < handle
         function [eval, skeleton] = DecomposeKernelTrans(this, row_inds, col_inds, filter)
            
             [Btrans, this_eval] = this.Kernel.eval_mat(this.Data, col_inds, row_inds, filter');
+            Btrans = Btrans / this.Sampler.Probability;
             this.NumKernelEvaluations = this.NumKernelEvaluations + this_eval;
             
             [proj,skeleton] = InterpolativeDecomposition(Btrans, this.Epsilon);
@@ -87,9 +89,7 @@ classdef KIFMM < handle
             this.Charges = zeros(this.NumPoints,1);
             this.Potentials = zeros(this.NumPoints,1);
             
-            for i = 1:this.NumPoints
-                this.Charges(i) = charges(this.Tree.NewFromOld(i));
-            end
+            this.Charges = charges(this.Tree.NewFromOld);
             
             % for all leaves, compute the outgoing rep
             num_leaves = size(this.Tree.LeafNodeList, 2);
@@ -390,6 +390,7 @@ classdef KIFMM < handle
 
                         % now, compute the oi operator between this_node and
                         % int_node
+                        % this one is exact
                         [this_oi, this_eval] = this.Kernel.eval_mat(this.Data, this_node.IncomingSkeleton, int_node.OutgoingSkeleton);
                         this.NumKernelEvaluations = this.NumKernelEvaluations + this_eval;
                         this_node.OIMatrices{j} = this_oi;

@@ -17,28 +17,15 @@ classdef UniformSampler
         
         function filter = GenFilter(this, num_rows, num_cols)
            
-            filter = zeros(num_rows, num_cols);
-            
-            for i = 1:num_rows
-               
-                for j = 1:num_cols
-                   
-                    p = rand(1);
-                    
-                    if (p < this.Probability) 
-                        filter(i,j) = 1;
-                    end
-                    
-                end
-                
-            end
+            p = rand(num_rows, num_cols);
+            filter = ~ceil(p - this.Probability);
             
         end
                 
         function [filter] = SampleFarField(this, row_inds, col_inds)
             
-            num_rows = size(row_inds,2);
-            num_cols = size(col_inds,2);
+            num_rows = numel(row_inds);
+            num_cols = numel(col_inds);
 
             % this doesn't generate a dense matrix when the probability is
             % 1

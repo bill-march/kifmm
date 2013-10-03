@@ -13,7 +13,8 @@ function [proj, skeleton] = InterpolativeDecomposition(A, eps)
 
     [~, R, perm] = qr(A,0);
     
-    % I think R should be in decreasing order of diagonal values
+    % R should be in decreasing order of diagonal values
+    
     % Now, R should be some linear combination of its own columns
     % These same columns will form the ID of A
     
@@ -24,7 +25,7 @@ function [proj, skeleton] = InterpolativeDecomposition(A, eps)
     % Want X s.t. B(:,1:k) X = B
     proj = B(:,skeleton) \ B;
     
-    Aapprox = A(:,skeleton) * proj;
+    %Aapprox = A(:,skeleton) * proj;
             
 end
 
