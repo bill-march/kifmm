@@ -1,15 +1,23 @@
 function [ error, ran ] = BoxCompression(A, epsilon, filter)
 
     disp('Decomposing matrix');
-    Asub = A .* filter;
+    % this is for the uniform sampler
+    if (numel(filter) == numel(A))
+        Asub = A .* filter;
+    else
+        % assumming the row sampler
+        % we assume that the rows in filter are sorted here, I think
+        Asub = A(filter,:);
+    end
+    
     [proj, skeleton] = InterpolativeDecomposition(Asub, epsilon);
     
     ran = numel(skeleton);
     
     disp('Reconstructing approximation');
-    Aapprox = Asub(:, skeleton) * proj;
+    Aapprox = A(:, skeleton) * proj;
 
-    error = norm(A - Aapprox);
+    error = norm(A - Aapprox) / norm(A);
     
 end
 

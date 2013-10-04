@@ -1,5 +1,6 @@
 classdef UniformSampler
     % Samples from the far-field uniformly at random (iid)
+    % this is based on the method of Achlioptas et al.
     
     properties
         
