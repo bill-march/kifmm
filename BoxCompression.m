@@ -12,8 +12,6 @@ function [ error, ran ] = BoxCompression(A, epsilon, filter)
         
     end
     
-    size(Asub)
-    
     [proj, skeleton] = InterpolativeDecomposition(Asub, epsilon);
     
     ran = numel(skeleton);

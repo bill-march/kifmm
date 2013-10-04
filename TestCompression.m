@@ -1,18 +1,17 @@
-function [ errors, ranks ] = TestCompression( num_data, leaf_size, kernel, epsilons, sampling_probs )
+function [ errors, ranks ] = TestCompression( num_data, dimensions, leaf_size, kernel, epsilons, sampling_probs )
 
-    data = rand(1,num_data);
-    data = sort(data);
+    data = rand(dimensions,num_data);
+    %data = sort(data);
 
-    start_ind = randi(num_data-leaf_size,1);
+    % the size of a ball that contains leaf_size points in expectation
+    box_width = (leaf_size * gamma(dimensions/2 + 1) / (num_data * pi^(dimensions/2)))^(1/dimensions);
     
-    my_box = start_ind:start_ind+leaf_size-1;
-    my_box_size = data(start_ind+leaf_size-1) - data(start_ind);
-    
-    % far-field is more than a box width away
-    far_field_l = find(data < data(start_ind) - my_box_size);
-    far_field_r = find(data > data(start_ind) + 2 * my_box_size);
+    leaf_corner = max(rand(dimensions, 1) - box_width,0);
+    box_center = leaf_corner + box_width / 2;
 
-    far_field = [far_field_l, far_field_r];
+    
+    
+    [my_box, far_field] = FindPointsInBox(data, box_center, box_width);
     
     errors = zeros(numel(epsilons), numel(sampling_probs));
     ranks = zeros(numel(epsilons), numel(sampling_probs));
