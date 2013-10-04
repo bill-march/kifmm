@@ -37,12 +37,24 @@ classdef GaussianKernel < handle
               
                 if (numel(rows) < numel(cols)) 
                 
-                for i = 1:numel(rows)
-                   
-                    point_i = data(:,rows(i));
-                    
-                    dists = bsxfun(@minus, data(:,cols), point_i).^2;
-                    res(i,:) = exp(-sum(dists,1) * this.Bandwidth);
+                    for i = 1:numel(rows)
+
+                        point_i = data(:,rows(i));
+
+                         dists = (data(cols) - point_i).^2;
+                         res(i,:) = exp(-dists * this.Bandwidth);
+    
+
+                    end
+                else
+    
+                    for i = 1:numel(cols)
+                       
+                        point_i = data(cols(i));
+                        dists = (data(rows) - point_i).^2;
+                        res(:,i) = exp(-dists * this.Bandwidth);
+                        
+                    end
                     
                 end
                 num_evals = numel(rows) * numel(cols);

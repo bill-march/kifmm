@@ -6,9 +6,13 @@ function [ error, ran ] = BoxCompression(A, epsilon, filter)
         Asub = A .* filter;
     else
         % assumming the row sampler
-        % we assume that the rows in filter are sorted here, I think
+        % we assume that the rows in filter are sorted here, I think, but
+        % it shouldn't matter
         Asub = A(filter,:);
+        
     end
+    
+    size(Asub)
     
     [proj, skeleton] = InterpolativeDecomposition(Asub, epsilon);
     
