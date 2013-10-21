@@ -11,7 +11,7 @@ function [ error, ran ] = BoxCompression(A, epsilon, filter)
         Asub = A(filter,:);
         
     end
-    
+        
     [proj, skeleton] = InterpolativeDecomposition(Asub, epsilon);
     
     ran = numel(skeleton);
@@ -20,6 +20,7 @@ function [ error, ran ] = BoxCompression(A, epsilon, filter)
     Aapprox = A(:, skeleton) * proj;
 
     error = norm(A - Aapprox) / norm(A);
+
     
 end
 
